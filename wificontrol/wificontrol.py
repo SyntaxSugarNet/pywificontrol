@@ -33,10 +33,10 @@
 # EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
-from hostapd import HostAP
-from wificommon import WiFi
-from wpasupplicant import WpaSupplicant
-from utils import PropertyError
+from wificontrol import HostAP
+from wificontrol import WiFi
+from wificontrol import WpaSupplicant
+from wificontrol.utils import PropertyError
 
 
 class WiFiControl(object):

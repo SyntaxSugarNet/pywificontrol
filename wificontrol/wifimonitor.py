@@ -37,7 +37,7 @@ import dbus
 import dbus.service
 import dbus.mainloop.glib
 import logging
-from . import WiFiControl
+from wificontrol import WiFiControl
 
 try:
     from gi.repository import GObject

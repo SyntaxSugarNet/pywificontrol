@@ -33,16 +33,14 @@
 # EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
-from wificommon import WiFi
-from utils import CfgFileUpdater
-from utils import WpaSupplicantInterface, WpaSupplicantNetwork, WpaSupplicantBSS
-from utils import convert_to_wpas_network, convert_to_wificontrol_network, \
-    create_security
-from utils import FileError
-from utils import ServiceError, InterfaceError, PropertyError
+from wificontrol import WiFi
+from wificontrol.utils import CfgFileUpdater
+from wificontrol.utils import WpaSupplicantInterface, WpaSupplicantNetwork, WpaSupplicantBSS
+from wificontrol.utils import convert_to_wpas_network, convert_to_wificontrol_network, create_security
+
 from threading import Thread, Event, Timer
 import time
-import sys
+
 
 
 class WpaSupplicant(WiFi):
