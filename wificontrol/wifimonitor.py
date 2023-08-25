@@ -48,7 +48,6 @@ logger = logging.getLogger(__name__)
 
 DBUS_PROPERTIES_IFACE = 'org.freedesktop.DBus.Properties'
 
-WPAS_INTERFACE_DBUS_OPATH = "/fi/w1/wpa_supplicant1/Interfaces/1"
 WPAS_INTERFACE_DBUS_IFACE = "fi.w1.wpa_supplicant1.Interface"
 
 SYSTEMD_DBUS_SERVICE = 'org.freedesktop.systemd1'
@@ -89,7 +88,7 @@ class WiFiMonitor(object):
         self.bus = dbus.SystemBus()
         self._mainloop = GObject.MainLoop()
 
-        self.wifi_manager = WiFiControl()
+        self.wifi_control = None
 
         self.callbacks = {}
 
@@ -103,10 +102,14 @@ class WiFiMonitor(object):
                                            dbus_interface=SYSTEMD_MANAGER_DBUS_IFACE)
         self.sysd_manager.Subscribe()
 
+        self.wifi_control.start_client_mode()
+
+        wpa_interface = self.wifi_control.wpa_supplicant.wpa_supplicant_interface.get_interface_path()
+
         self.bus.add_signal_receiver(self._wpa_props_changed,
                                      dbus_interface=WPAS_INTERFACE_DBUS_IFACE,
                                      signal_name="PropertiesChanged",
-                                     path=WPAS_INTERFACE_DBUS_OPATH)
+                                     path=wpa_interface)
 
         self.bus.add_signal_receiver(self._host_props_changed,
                                      dbus_interface=DBUS_PROPERTIES_IFACE,
@@ -121,7 +124,7 @@ class WiFiMonitor(object):
         self.register_callback(self.HOST_STATE, self._clear_ssid)
 
     def _set_initial_state(self):
-        state = self.wifi_manager.get_state()
+        state = self.wifi_control.get_state()
         logger.debug('Initiate WiFiMonitor with "{}" state'.format(state))
         self._process_new_state(state)
 
@@ -160,7 +163,7 @@ class WiFiMonitor(object):
 
     @property
     def _ssid_updated(self):
-        _, status = self.wifi_manager.get_status()
+        _, status = self.wifi_control.get_status()
 
         try:
             ssid = status['ssid']
@@ -193,8 +196,9 @@ class WiFiMonitor(object):
                 except Exception as error:
                     logger.error('Callback {} execution error. {}'.format(callback.__name__, error))
 
-    def run(self):
+    def run(self, wifi_control: WiFiControl):
         try:
+            self.wifi_control = wifi_control
             self._initialize()
         except dbus.exceptions.DBusException as error:
             logger.error(error)

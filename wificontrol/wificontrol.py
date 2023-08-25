@@ -51,33 +51,33 @@ class WiFiControl(object):
                  hostname_config='/etc/hostname'):
 
         self.wifi = WiFi(interface)
-        self.wpasupplicant = WpaSupplicant(interface, wpas_config, p2p_config)
+        self.wpa_supplicant = WpaSupplicant(interface, wpas_config, p2p_config)
         self.hotspot = HostAP(interface, hostapd_config, hostname_config)
 
     def start_host_mode(self):
         if not self.hotspot.started():
-            self.wpasupplicant.stop()
+            self.wpa_supplicant.stop()
             self.hotspot.start()
         return True
 
     def start_client_mode(self):
-        if not self.wpasupplicant.started():
+        if not self.wpa_supplicant.started():
             self.hotspot.stop()
-            self.wpasupplicant.start()
+            self.wpa_supplicant.start()
         return True
 
     def turn_on_wifi(self):
         if self.get_state() == self.OFF_STATE:
             self.wifi.unblock()
-            self.wpasupplicant.start()
+            self.wpa_supplicant.start()
 
     def turn_off_wifi(self):
         self.hotspot.stop()
-        self.wpasupplicant.stop()
+        self.wpa_supplicant.stop()
         self.wifi.block()
 
     def get_wifi_turned_on(self):
-        return (self.wpasupplicant.started() or self.hotspot.started())
+        return (self.wpa_supplicant.started() or self.hotspot.started())
 
     def set_hostap_password(self, password):
         return self.hotspot.set_hostap_password(password)
@@ -89,7 +89,7 @@ class WiFiControl(object):
         return self.hotspot.get_hostap_name()
 
     def set_device_names(self, name):
-        self.wpasupplicant.set_p2p_name(name)
+        self.wpa_supplicant.set_p2p_name(name)
         self.hotspot.set_hostap_name(name)
         self.hotspot.set_host_name(name)
         self.wifi.restart_dns()
@@ -102,7 +102,7 @@ class WiFiControl(object):
     def verify_device_names(self, name):
         verified = False
         if name == self.hotspot.get_host_name():
-            if name == self.wpasupplicant.get_p2p_name():
+            if name == self.wpa_supplicant.get_p2p_name():
                 if self.verify_hostap_name(name):
                     verified = True
         return verified
@@ -113,47 +113,47 @@ class WiFiControl(object):
 
         if state == self.WPA_STATE:
             try:
-                wpa_status = self.wpasupplicant.get_status()
+                wpa_status = self.wpa_supplicant.get_status()
             except PropertyError:
                 return state, wpa_status
 
         return state, wpa_status
 
     def get_added_networks(self):
-        return self.wpasupplicant.get_added_networks()
+        return self.wpa_supplicant.get_added_networks()
 
     def get_ip(self):
         return self.wifi.get_device_ip()
 
     def scan(self):
-        self.wpasupplicant.scan()
+        self.wpa_supplicant.scan()
 
     def get_scan_results(self):
-        return self.wpasupplicant.get_scan_results()
+        return self.wpa_supplicant.get_scan_results()
 
     def add_network(self, network_parameters):
-        self.wpasupplicant.add_network(network_parameters)
+        self.wpa_supplicant.add_network(network_parameters)
 
     def remove_network(self, network):
-        self.wpasupplicant.remove_network(network)
+        self.wpa_supplicant.remove_network(network)
 
     def start_connecting(self, network, callback=None, args=None, timeout=10):
         if callback is None:
             callback = self.revert_on_connect_failure
             args = None
         self.start_client_mode()
-        self.wpasupplicant.start_connecting(network, callback, args, timeout)
+        self.wpa_supplicant.start_connecting(network, callback, args, timeout)
 
     def stop_connecting(self):
-        self.wpasupplicant.stop_connecting()
+        self.wpa_supplicant.stop_connecting()
 
     def disconnect(self):
-        self.wpasupplicant.disconnect()
+        self.wpa_supplicant.disconnect()
 
     def get_state(self):
         state = self.OFF_STATE
 
-        if self.wpasupplicant.started():
+        if self.wpa_supplicant.started():
             state = self.WPA_STATE
         elif self.hotspot.started():
             state = self.HOST_STATE

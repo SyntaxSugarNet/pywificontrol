@@ -75,9 +75,9 @@ class WpasNetworkConverter(object):
     def __init__(self, network_dict):
 
         self.security = network_dict.get('security')
-        self.name = network_dict.get('ssid', '').encode('utf-8')
-        self.password = network_dict.get('password', '').encode('utf-8')
-        self.identity = network_dict.get('identity', '').encode('utf-8')
+        self.name = network_dict.get('ssid', '')
+        self.password = network_dict.get('password', '')
+        self.identity = network_dict.get('identity', '')
 
     def __iter__(self):
         if (self.security == 'open'):

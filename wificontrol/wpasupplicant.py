@@ -89,10 +89,12 @@ class WpaSupplicant(WiFi):
     def get_status(self):
         network_params = None
         if self.started():
-            network_params = dict()
-            network_params['ssid'] = self.get_current_network_ssid()
-            network_params['mac address'] = self.get_device_mac()
-            network_params['IP address'] = self.get_device_ip()
+            current_ssid = self.get_current_network_ssid()
+            if current_ssid is not None:
+                network_params = dict()
+                network_params['ssid'] = current_ssid
+                network_params['mac address'] = self.get_device_mac()
+                network_params['IP address'] = self.get_device_ip()
         return network_params
 
     def scan(self):
@@ -219,8 +221,11 @@ class WpaSupplicant(WiFi):
 
     def get_current_network_ssid(self):
         self.wpa_supplicant_interface.initialize()
-        network = self.wpa_supplicant_interface.get_current_network()
-        return self.wpa_network_manager.get_network_SSID(network)
+        current_network_path = self.wpa_supplicant_interface.get_current_network()
+        if current_network_path != "/":
+            return self.wpa_network_manager.get_network_SSID(current_network_path)
+        else:
+            return None
 
     # Connection actions
     def start_network_connection(self, network):
@@ -230,7 +235,7 @@ class WpaSupplicant(WiFi):
         else:
             self.wpa_supplicant_interface.reassociate()
 
-    def wait_untill_connection_complete(self):
+    def wait_until_connection_complete(self):
         while self.wpa_supplicant_interface.get_state() != "completed":
             if not self.connection_event.is_set():
                 raise RuntimeError("Can't connect to network")
@@ -244,7 +249,7 @@ class WpaSupplicant(WiFi):
     def connect_to_network(self, network):
         try:
             self.start_network_connection(network)
-            self.wait_untill_connection_complete()
+            self.wait_until_connection_complete()
             self.check_correct_connection(network)
         except RuntimeError:
             return False
@@ -261,7 +266,6 @@ class WpaSupplicant(WiFi):
         self.connection_thread = None
         self.stop_timer_thread()
         if self.break_event.is_set():
-            callback = None
             self.break_event.clear()
 
     def stop_timer_thread(self):
