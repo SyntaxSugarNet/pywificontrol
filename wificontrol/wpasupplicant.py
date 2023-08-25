@@ -201,7 +201,7 @@ class WpaSupplicant(WiFi):
                 return False
         return True
 
-    # Names changung actions
+    # Names changing actions
     def set_p2p_name(self, name='reach'):
         self.replace("^p2p_ssid_postfix=.*", "p2p_ssid_postfix={}".format(name),
                      self.p2p_supplicant_path)
@@ -215,7 +215,7 @@ class WpaSupplicant(WiFi):
         for network in self.wpa_supplicant_interface.get_networks():
             if self.wpa_network_manager.get_network_SSID(network) == \
                     aim_network['ssid']:
-                return network
+                return str(network)
 
     def get_current_network_ssid(self):
         self.wpa_supplicant_interface.initialize()
