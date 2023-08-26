@@ -65,9 +65,9 @@ class TestHostAP:
 
     def test_set_hostap_name(self):
         new_name = "testname"
-        self.hotspot.set_hostap_name(new_name)
+        self.hotspot.set_hotspot_ssid(new_name)
         mac_end = self.hotspot.get_device_mac()[-6:]
-        assert self.hotspot.get_hostap_name() == "{}{}".format(new_name, mac_end)
+        assert self.hotspot.get_hotspot_ssid() == "{}{}".format(new_name, mac_end)
 
     def test_set_host_name(self):
         new_name = "testname"
@@ -84,4 +84,4 @@ class TestHostAP:
 
     def test_verify_hostap_password(self):
         wpa_pass = 'somepassword'
-        assert self.hotspot.verify_hostap_password(wpa_pass)
+        assert self.hotspot.verify_hotspot_password(wpa_pass)

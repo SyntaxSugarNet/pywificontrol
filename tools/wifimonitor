@@ -50,13 +50,13 @@ def main():
 
     wifi_monitor = WiFiMonitor()
 
-    wifi_monitor.register_callback(wifi_monitor.HOST_STATE, StateClient.set_network_host_state)
-    wifi_monitor.register_callback(wifi_monitor.CLIENT_STATE, StateClient.set_network_client_state)
+    wifi_monitor.register_callback(wifi_monitor.HOST_STARTED_STATE, StateClient.set_network_host_state)
+    wifi_monitor.register_callback(wifi_monitor.CLIENT_STARTED_STATE, StateClient.set_network_client_state)
     wifi_monitor.register_callback(wifi_monitor.OFF_STATE, StateClient.set_network_disabled_state)
-    wifi_monitor.register_callback(wifi_monitor.SCAN_STATE, StateClient.set_network_scan_state)
-    wifi_monitor.register_callback(wifi_monitor.REVERT_EVENT,
+    wifi_monitor.register_callback(wifi_monitor.CLIENT_RUNNING_STATE, StateClient.set_network_scan_state)
+    wifi_monitor.register_callback(wifi_monitor.RECONNECTED_EVENT,
                                    StateClient.send_revert_connect_notify)
-    wifi_monitor.register_callback(wifi_monitor.SUCCESS_EVENT,
+    wifi_monitor.register_callback(wifi_monitor.CONNECTED_EVENT,
                                    StateClient.send_success_connect_notify)
 
     signal.signal(signal.SIGINT, handler)

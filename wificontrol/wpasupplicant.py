@@ -42,7 +42,6 @@ from threading import Thread, Event, Timer
 import time
 
 
-
 class WpaSupplicant(WiFi):
     wpas_control = lambda self, action: "systemctl {} wpa_supplicant.service && sleep 2".format(
         action)
@@ -86,6 +85,10 @@ class WpaSupplicant(WiFi):
     def stop(self):
         self.execute_command(self.wpas_control("stop"))
 
+    def restart(self):
+        self.execute_command(self.wpas_control("restart"))
+        self.wpa_supplicant_interface.initialize()
+
     def get_status(self):
         network_params = None
         if self.started():
@@ -93,8 +96,8 @@ class WpaSupplicant(WiFi):
             if current_ssid is not None:
                 network_params = dict()
                 network_params['ssid'] = current_ssid
-                network_params['mac address'] = self.get_device_mac()
-                network_params['IP address'] = self.get_device_ip()
+                network_params['ip'] = self.get_device_ip()
+                network_params['mac'] = self.get_device_mac()
         return network_params
 
     def scan(self):
@@ -170,7 +173,7 @@ class WpaSupplicant(WiFi):
     def get_bss_network_info(self, bss):
         return {
             "ssid": self.wpa_bss_manager.get_SSID(bss),
-            "mac address": self.wpa_bss_manager.get_BSSID(bss),
+            "mac": self.wpa_bss_manager.get_BSSID(bss),
             "security": self.get_security(bss)
         }
 

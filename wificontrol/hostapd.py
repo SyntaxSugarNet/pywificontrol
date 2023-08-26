@@ -38,7 +38,7 @@ from wificontrol import WiFi
 
 
 class HostAP(WiFi):
-    hostapd_control = lambda self, action: "systemctl {} hostapd.service && sleep 2".format(action)
+    hotspot_control = lambda self, action, service: "systemctl {} {}.service && sleep 2".format(action, service)
 
     def __init__(self, interface,
                  hostapd_config="/etc/hostapd/hostapd.conf",
@@ -48,33 +48,44 @@ class HostAP(WiFi):
         self.hostapd_path = hostapd_config
         self.hostname_path = hostname_config
 
-        if (b'bin/hostapd' not in self.execute_command("whereis hostapd")):
-            raise OSError('No HOSTAPD servise')
+        if b'bin/hostapd' not in self.execute_command("whereis hostapd"):
+            raise OSError('No HOSTAPD service')
 
-        self.started = lambda: self.sysdmanager.is_active("hostapd.service")
+        if b'bin/dnsmasq' not in self.execute_command("whereis dnsmasq"):
+            raise OSError('No DNSMASQ service')
+
+        self.started = lambda: (self.sysdmanager.is_active("hostapd.service")
+                                and self.sysdmanager.is_active("dnsmasq.service"))
 
     def start(self):
-        self.execute_command(self.hostapd_control("start"))
+        self.execute_command(self.hotspot_control("start", "hostapd"))
+        if not self.sysdmanager.is_active("dnsmasq.service"):
+            self.execute_command(self.hotspot_control("start", "dnsmasq"))
 
     def stop(self):
-        self.execute_command(self.hostapd_control("stop"))
+        self.execute_command(self.hotspot_control("stop", "hostapd"))
 
-    def get_hostap_name(self):
+    def restart(self):
+        self.execute_command(self.hotspot_control("restart", "hostapd"))
+        if not self.sysdmanager.is_active("dnsmasq.service"):
+            self.execute_command(self.hotspot_control("start", "dnsmasq"))
+
+    def get_hotspot_ssid(self):
         return self.re_search("(?<=^ssid=).*", self.hostapd_path)
 
-    def set_hostap_name(self, name='reach'):
+    def set_hotspot_ssid(self, name):
         mac_addr = self.get_device_mac()[-6:]
         self.replace("^ssid=.*", "ssid={}{}".format(name, mac_addr), self.hostapd_path)
 
-    def set_hostap_password(self, password):
+    def set_hotspot_password(self, password):
         self.replace("^wpa_passphrase=.*",
                      "wpa_passphrase={}".format(password), self.hostapd_path)
-        return self.verify_hostap_password(password)
+        return self.verify_hotspot_password(password)
 
-    def verify_hostap_password(self, value):
+    def verify_hotspot_password(self, value):
         return self.re_search("(?<=^wpa_passphrase=).*", self.hostapd_path) == value
 
-    def set_host_name(self, name='reach'):
+    def set_host_name(self, name):
         try:
             with open(self.hostname_path, 'w', 0) as hostname_file:
                 hostname_file.write(name + '\n')

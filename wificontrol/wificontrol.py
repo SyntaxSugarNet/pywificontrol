@@ -40,8 +40,8 @@ from wificontrol.utils import PropertyError
 
 
 class WiFiControl(object):
-    WPA_STATE = 'wpa_supplicant'
-    HOST_STATE = 'hostapd'
+    CLIENT_STATE = 'wpa_supplicant'
+    HOTSPOT_STATE = 'hostapd'
     OFF_STATE = 'wifi_off'
 
     def __init__(self, interface='wlan0',
@@ -54,15 +54,21 @@ class WiFiControl(object):
         self.wpa_supplicant = WpaSupplicant(interface, wpas_config, p2p_config)
         self.hotspot = HostAP(interface, hostapd_config, hostname_config)
 
-    def start_host_mode(self):
-        if not self.hotspot.started():
+    def start_hotspot_mode(self):
+        if self.wpa_supplicant.started():
             self.wpa_supplicant.stop()
+        if self.hotspot.started():
+            self.hotspot.restart()
+        else:
             self.hotspot.start()
         return True
 
     def start_client_mode(self):
-        if not self.wpa_supplicant.started():
+        if self.hotspot.started():
             self.hotspot.stop()
+        if self.wpa_supplicant.started():
+            self.wpa_supplicant.restart()
+        else:
             self.wpa_supplicant.start()
         return True
 
@@ -77,47 +83,52 @@ class WiFiControl(object):
         self.wifi.block()
 
     def get_wifi_turned_on(self):
-        return (self.wpa_supplicant.started() or self.hotspot.started())
+        return self.wpa_supplicant.started() or self.hotspot.started()
 
-    def set_hostap_password(self, password):
-        return self.hotspot.set_hostap_password(password)
+    def set_hotspot_password(self, password):
+        return self.hotspot.set_hotspot_password(password)
 
     def get_device_name(self):
         return self.hotspot.get_host_name()
 
-    def get_hostap_name(self):
-        return self.hotspot.get_hostap_name()
+    def get_hotspot_name(self):
+        return self.hotspot.get_hotspot_ssid()
 
     def set_device_names(self, name):
         self.wpa_supplicant.set_p2p_name(name)
-        self.hotspot.set_hostap_name(name)
+        self.hotspot.set_hotspot_ssid(name)
         self.hotspot.set_host_name(name)
         self.wifi.restart_dns()
         return self.verify_device_names(name)
 
-    def verify_hostap_name(self, name):
+    def verify_hotspot_name(self, name):
         mac_addr = self.hotspot.get_device_mac()[-6:]
-        return "{}{}".format(name, mac_addr) == self.hotspot.get_hostap_name()
+        return "{}{}".format(name, mac_addr) == self.hotspot.get_hotspot_ssid()
 
     def verify_device_names(self, name):
         verified = False
         if name == self.hotspot.get_host_name():
             if name == self.wpa_supplicant.get_p2p_name():
-                if self.verify_hostap_name(name):
+                if self.verify_hotspot_name(name):
                     verified = True
         return verified
 
     def get_status(self):
         state = self.get_state()
-        wpa_status = None
+        status = None
 
-        if state == self.WPA_STATE:
+        if state == self.CLIENT_STATE:
             try:
-                wpa_status = self.wpa_supplicant.get_status()
+                status = self.wpa_supplicant.get_status()
             except PropertyError:
-                return state, wpa_status
+                return state, status
+        elif state == self.HOTSPOT_STATE:
+            try:
+                status = self.hotspot.get_hotspot_ssid()
+            except PropertyError:
+                return state, status
 
-        return state, wpa_status
+        return state, status
 
     def get_added_networks(self):
         return self.wpa_supplicant.get_added_networks()
@@ -154,15 +165,15 @@ class WiFiControl(object):
         state = self.OFF_STATE
 
         if self.wpa_supplicant.started():
-            state = self.WPA_STATE
+            state = self.CLIENT_STATE
         elif self.hotspot.started():
-            state = self.HOST_STATE
+            state = self.HOTSPOT_STATE
 
         return state
 
     def revert_on_connect_failure(self, result):
         if not result:
-            self.start_host_mode()
+            self.start_hotspot_mode()
 
     def reconnect(self, result, network):
         if not result:
@@ -170,5 +181,5 @@ class WiFiControl(object):
 
 
 if __name__ == '__main__':
-    wificontrol = WiFiControl('wlp6s0')
-    print(wificontrol.get_status())
+    wifi_control = WiFiControl('wlp6s0')
+    print(wifi_control.get_status())

@@ -75,15 +75,15 @@ class WiFi(object):
             return "00:00:00:00:00:00"
 
     def re_search(self, pattern, file):
-        with open(file, 'r', 0) as data_file:
+        with open(file, 'r') as data_file:
             data = data_file.read()
         return re.search(pattern, data, re.MULTILINE).group(0)
 
     def replace(self, pattern, text, file):
-        with open(file, 'r', 0) as data_file:
+        with open(file, 'r') as data_file:
             data = data_file.read()
         old = re.search(pattern, data, re.MULTILINE).group(0)
-        with open(file, 'w', 0) as data_file:
+        with open(file, 'w') as data_file:
             data_file.write(data.replace(old, text))
             data_file.flush()
             os.fsync(data_file)

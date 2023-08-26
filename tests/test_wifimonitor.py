@@ -41,7 +41,7 @@ from wificontrol import WiFiMonitor, WiFiControl
 
 class FakeWiFiControl(WiFiControl):
     def __init__(self):
-        self.state = self.HOST_STATE
+        self.state = self.HOTSPOT_STATE
         self.status = {}
 
     def get_state(self):
@@ -122,52 +122,52 @@ class TestWiFiMonitor:
         cls.monitor.shutdown()
 
     def test_initial_start(self):
-        assert self.monitor.current_state == self.monitor.HOST_STATE
+        assert self.monitor.current_state == self.monitor.HOST_STARTED_STATE
 
     def test_wpa_scan_state(self, scanning_state):
-        self.monitor._wpa_props_changed(scanning_state)
-        assert self.monitor.current_state == self.monitor.SCAN_STATE
+        self.monitor._wpa_properties_changed(scanning_state)
+        assert self.monitor.current_state == self.monitor.CLIENT_RUNNING_STATE
 
     def test_wpa_client_state(self, wpa_client_state):
-        self.monitor._wpa_props_changed(wpa_client_state)
-        assert self.monitor.current_state == self.monitor.CLIENT_STATE
+        self.monitor._wpa_properties_changed(wpa_client_state)
+        assert self.monitor.current_state == self.monitor.CLIENT_STARTED_STATE
 
     def test_wpa_disconnect_state(self, wpa_disconnect_state):
-        self.monitor._wpa_props_changed(wpa_disconnect_state)
+        self.monitor._wpa_properties_changed(wpa_disconnect_state)
         assert self.monitor.current_state == self.monitor.OFF_STATE
 
     def test_host_mode_state(self, wpa_client_state, host_mode_state):
         self.monitor.wifi_manager.set_ssid(self.ssid)
-        self.monitor._wpa_props_changed(wpa_client_state)
+        self.monitor._wpa_properties_changed(wpa_client_state)
 
-        assert self.monitor.current_state == self.monitor.CLIENT_STATE
+        assert self.monitor.current_state == self.monitor.CLIENT_STARTED_STATE
         assert self.monitor.current_ssid == self.ssid
 
-        self.monitor._host_props_changed(*host_mode_state)
+        self.monitor._hostapd_properties_changed(*host_mode_state)
 
-        assert self.monitor.current_state == self.monitor.HOST_STATE
+        assert self.monitor.current_state == self.monitor.HOST_STARTED_STATE
         assert self.monitor.current_ssid is None
 
     def test_callback_execution(self, wpa_client_state, mocker):
         stub_func = mocker.stub(name='stub_func')
 
-        self.monitor.register_callback(self.monitor.CLIENT_STATE, stub_func, args=('test',))
+        self.monitor.register_callback(self.monitor.CLIENT_STARTED_STATE, stub_func, args=('test',))
 
-        self.monitor._wpa_props_changed(wpa_client_state)
-        assert self.monitor.current_state == self.monitor.CLIENT_STATE
+        self.monitor._wpa_properties_changed(wpa_client_state)
+        assert self.monitor.current_state == self.monitor.CLIENT_STARTED_STATE
         stub_func.assert_called_with('test')
 
     def test_success_connection_event(self, wpa_client_state, host_mode_state, mocker):
         stub_func = mocker.stub(name='stub_func')
 
-        self.monitor.register_callback(self.monitor.SUCCESS_EVENT, stub_func, args=('success',))
+        self.monitor.register_callback(self.monitor.CONNECTED_EVENT, stub_func, args=('success',))
 
-        self.monitor._host_props_changed(*host_mode_state)
+        self.monitor._hostapd_properties_changed(*host_mode_state)
 
         self.monitor.wifi_manager.set_ssid(self.ssid)
-        self.monitor._wpa_props_changed(wpa_client_state)
+        self.monitor._wpa_properties_changed(wpa_client_state)
 
-        assert self.monitor.current_state == self.monitor.CLIENT_STATE
+        assert self.monitor.current_state == self.monitor.CLIENT_STARTED_STATE
         assert self.monitor.current_ssid == self.ssid
         stub_func.assert_called_with('success')
 
@@ -176,14 +176,14 @@ class TestWiFiMonitor:
 
         self.monitor.wifi_manager.set_ssid(self.ssid)
 
-        self.monitor.register_callback(self.monitor.REVERT_EVENT, stub_func, args=('revert',))
+        self.monitor.register_callback(self.monitor.RECONNECTED_EVENT, stub_func, args=('revert',))
 
-        self.monitor._wpa_props_changed(wpa_client_state)
-        assert self.monitor.current_state == self.monitor.CLIENT_STATE
+        self.monitor._wpa_properties_changed(wpa_client_state)
+        assert self.monitor.current_state == self.monitor.CLIENT_STARTED_STATE
 
-        self.monitor._wpa_props_changed(scanning_state)
-        assert self.monitor.current_state == self.monitor.SCAN_STATE
+        self.monitor._wpa_properties_changed(scanning_state)
+        assert self.monitor.current_state == self.monitor.CLIENT_RUNNING_STATE
 
-        self.monitor._wpa_props_changed(wpa_client_state)
-        assert self.monitor.current_state == self.monitor.CLIENT_STATE
+        self.monitor._wpa_properties_changed(wpa_client_state)
+        assert self.monitor.current_state == self.monitor.CLIENT_STARTED_STATE
         stub_func.assert_called_with('revert')
