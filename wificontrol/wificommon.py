@@ -36,6 +36,7 @@
 import os
 import re
 import subprocess
+import time
 
 from sysdmanager import SystemdManager
 from netifaces import ifaddresses, AF_INET, AF_LINK
@@ -52,6 +53,7 @@ class WiFi(object):
     def __init__(self, interface):
         self.interface = interface
         self.sysdmanager = SystemdManager()
+        self.retry_ip = True
 
     def restart_dns(self):
         self.execute_command(self.restart_mdns)
@@ -63,16 +65,24 @@ class WiFi(object):
         self.execute_command(self.rfkill_wifi_control("unblock"))
 
     def get_device_ip(self):
-        try:
-            return ifaddresses(self.interface)[AF_INET][0]['addr']
-        except KeyError:
-            return "127.0.0.1"
+        ip = None
+
+        while not ip:
+            try:
+                ip = ifaddresses(self.interface)[AF_INET][0]['addr']
+            except KeyError:
+                if self.retry_ip:
+                    time.sleep(0.1)
+                else:
+                    break
+
+        return ip
 
     def get_device_mac(self):
         try:
             return ifaddresses(self.interface)[AF_LINK][0]['addr']
         except KeyError:
-            return "00:00:00:00:00:00"
+            return None
 
     def re_search(self, pattern, file):
         with open(file, 'r') as data_file:

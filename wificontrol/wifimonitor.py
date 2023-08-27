@@ -39,10 +39,7 @@ import dbus.mainloop.glib
 import logging
 from wificontrol import WiFiControl
 
-try:
-    from gi.repository import GObject
-except ImportError:
-    import gobject as GObject
+from gi.repository import GLib
 
 logger = logging.getLogger(__name__)
 
@@ -82,40 +79,42 @@ class WiFiMonitor(object):
     HOTSPOT_FAILED = 'HOTSPOT_FAILED'
 
     HOTSPOT_STATUS_EVENTS = {
-        ('activating', 'start'): HOTSPOT_STARTING,
-        ('active', 'running'): HOTSPOT_STARTED,
-        ('deactivating', 'stop-post'): HOTSPOT_STOPPING,
-        ('deactivating', 'stop-sigterm'): HOTSPOT_STOPPING,
-        ('inactive', 'dead'): HOTSPOT_STOPPED,
-        ('failed', 'failed'): HOTSPOT_FAILED
+        'activating': HOTSPOT_STARTING,
+        'active': HOTSPOT_STARTED,
+        'deactivating': HOTSPOT_STOPPING,
+        'inactive': HOTSPOT_STOPPED,
+        'failed': HOTSPOT_FAILED
     }
 
-    LEASE_ADDED = "LEASE_ADDED"
-    LEASE_UPDATED = "LEASE_UPDATED"
-    LEASE_DELETED = "LEASE_DELETED"
+    PEER_CONNECTED = "PEER_CONNECTED"
+    PEER_RECONNECTED = "PEER_RECONNECTED"
+    PEER_DISCONNECTED = "PEER_DISCONNECTED"
 
-    HOTSPOT_LEASE_EVENTS = {
-        'DhcpLeaseAdded': LEASE_ADDED,
-        'DhcpLeaseUpdated': LEASE_UPDATED,
-        'DhcpLeaseDeleted': LEASE_DELETED
+    HOTSPOT_PEER_EVENTS = {
+        'DhcpLeaseAdded': PEER_CONNECTED,
+        'DhcpLeaseUpdated': PEER_RECONNECTED,
+        'DhcpLeaseDeleted': PEER_DISCONNECTED
     }
 
     def __init__(self):
         dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
         self.bus = dbus.SystemBus()
-        self._mainloop = GObject.MainLoop()
+        self._mainloop = GLib.MainLoop()
 
         self.wifi_control = None
 
         self.callbacks = {}
 
-        self.last_host_event = None
+        self.last_client_data = None
+        self.last_hotspot_event = None
 
     def _initialize(self):
         systemd_obj = self.bus.get_object(SYSTEMD_DBUS_SERVICE,
                                           SYSTEMD_DBUS_OPATH)
         self.sysd_manager = dbus.Interface(systemd_obj, dbus_interface=SYSTEMD_MANAGER_DBUS_IFACE)
         self.sysd_manager.Subscribe()
+
+        self.last_client_data = self.wifi_control.wpa_supplicant.get_status()
 
         wpa_interface = self.wifi_control.wpa_supplicant.wpa_supplicant_interface.get_interface_path()
 
@@ -131,7 +130,7 @@ class WiFiMonitor(object):
 
         dnsmasq = self.bus.get_object(DNSMASQ_DBUS_SERVICE, DNSMASQ_DBUS_OPATH)
 
-        for signal in self.HOTSPOT_LEASE_EVENTS.keys():
+        for signal in self.HOTSPOT_PEER_EVENTS.keys():
             dnsmasq.connect_to_signal(signal, functools.partial(self._dhcp_lease_changed, signal))
 
     def _wpa_properties_changed(self, props):
@@ -139,32 +138,31 @@ class WiFiMonitor(object):
         if wpa_state:
             event = self.CLIENT_STATUS_EVENTS.get(wpa_state)
             if event:
-                data = self.wifi_control.wpa_supplicant.get_status()
-                self._execute_callbacks(event, data)
+                self._execute_callbacks(event, self.last_client_data)
+                self.last_client_data = self.wifi_control.wpa_supplicant.get_status()
             else:
                 logger.error("Unmapped WPA state: %s", wpa_state)
 
     def _hostapd_properties_changed(self, *args):
         _, props, _ = args
-        active_state = props.get('ActiveState')
-        sub_state = props.get('SubState')
+        state = props.get('ActiveState')
 
-        if active_state and sub_state:
-            event = self.HOTSPOT_STATUS_EVENTS.get((active_state, sub_state))
+        if state:
+            event = self.HOTSPOT_STATUS_EVENTS.get(state)
             if event:
-                if event != self.last_host_event:
-                    self.last_host_event = event
-                    data = self.wifi_control.hotspot.get_hotspot_ssid()
+                if event != self.last_hotspot_event:
+                    self.last_hotspot_event = event
+                    data = self.wifi_control.hotspot.get_status()
                     self._execute_callbacks(event, data)
             else:
-                logger.error("Unmapped HOSTAPD state: %s (%s)", active_state, sub_state)
+                logger.error("Unmapped HOSTAPD state: %s", state)
 
     def _dhcp_lease_changed(self, *args, **kwargs):
         if self.wifi_control.get_state() != self.wifi_control.HOTSPOT_STATE:
             return
 
         signal = args[0]
-        event = self.HOTSPOT_LEASE_EVENTS.get(signal)
+        event = self.HOTSPOT_PEER_EVENTS.get(signal)
 
         if event:
             data = dict()

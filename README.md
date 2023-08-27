@@ -116,30 +116,45 @@ Add handlers to wpa_supplicant and hostapd D-Bus events. **Must be** run in a se
 
 ```
 import signal
-from wificontrol import WiFiMonitor, WiFiControl
+from wificontrol import WiFiMonitor
+from wificontrol.wificontrol import WiFiControl
 
 
 def main():
+    wifi_monitor = WiFiMonitor()
+    wifi_control = WiFiControl()
 
     def handler(signum, frame):
         wifi_monitor.shutdown()
 
-    def print_wifi_state():
-        print(WiFiControl().get_status())
-    
-    wifi_monitor = WiFiMonitor()
+    def print_wifi_state(event, data):
+        print(f'{event} -> {data}')
 
-    wifi_monitor.register_callback(wifi_monitor.HOST_STATE, print_wifi_state)
-    wifi_monitor.register_callback(wifi_monitor.CLIENT_STATE, print_wifi_state)
-    wifi_monitor.register_callback(wifi_monitor.OFF_STATE, print_wifi_state)
-    wifi_monitor.register_callback(wifi_monitor.SCAN_STATE, print_wifi_state)
-    wifi_monitor.register_callback(wifi_monitor.REVERT_EVENT, print_wifi_state)
-    wifi_monitor.register_callback(wifi_monitor.SUCCESS_EVENT, print_wifi_state)
+        if event == wifi_monitor.CLIENT_DISCONNECTED:
+            print('Changing to hotspot mode...')
+            wifi_control.start_hotspot_mode()
+        elif event == wifi_monitor.PEER_DISCONNECTED:
+            print('Changing to client mode...')
+            wifi_control.start_client_mode()
+
+    wifi_monitor.register_callback(wifi_monitor.CLIENT_INACTIVE, print_wifi_state)
+    wifi_monitor.register_callback(wifi_monitor.CLIENT_SCANNING, print_wifi_state)
+    wifi_monitor.register_callback(wifi_monitor.CLIENT_CONNECTING, print_wifi_state)
+    wifi_monitor.register_callback(wifi_monitor.CLIENT_CONNECTED, print_wifi_state)
+    wifi_monitor.register_callback(wifi_monitor.CLIENT_DISCONNECTED, print_wifi_state)
+    wifi_monitor.register_callback(wifi_monitor.HOTSPOT_STARTING, print_wifi_state)
+    wifi_monitor.register_callback(wifi_monitor.HOTSPOT_STARTED, print_wifi_state)
+    wifi_monitor.register_callback(wifi_monitor.HOTSPOT_STOPPING, print_wifi_state)
+    wifi_monitor.register_callback(wifi_monitor.HOTSPOT_STOPPED, print_wifi_state)
+    wifi_monitor.register_callback(wifi_monitor.HOTSPOT_FAILED, print_wifi_state)
+    wifi_monitor.register_callback(wifi_monitor.PEER_CONNECTED, print_wifi_state)
+    wifi_monitor.register_callback(wifi_monitor.PEER_RECONNECTED, print_wifi_state)
+    wifi_monitor.register_callback(wifi_monitor.PEER_DISCONNECTED, print_wifi_state)
 
     signal.signal(signal.SIGINT, handler)
     signal.signal(signal.SIGTERM, handler)
 
-    wifi_monitor.run()
+    wifi_monitor.run(wifi_control)
 
 
 if __name__ == '__main__':

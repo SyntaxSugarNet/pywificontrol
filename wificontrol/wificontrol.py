@@ -124,7 +124,7 @@ class WiFiControl(object):
                 return state, status
         elif state == self.HOTSPOT_STATE:
             try:
-                status = self.hotspot.get_hotspot_ssid()
+                status = self.hotspot.get_status()
             except PropertyError:
                 return state, status
 

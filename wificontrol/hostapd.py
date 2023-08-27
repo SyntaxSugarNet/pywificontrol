@@ -58,6 +58,7 @@ class HostAP(WiFi):
                                 and self.sysdmanager.is_active("dnsmasq.service"))
 
     def start(self):
+        self.execute_command(f"ifconfig {self.interface} 192.168.100.1 netmask 255.255.255.0 broadcast 192.168.100.255")
         self.execute_command(self.hotspot_control("start", "hostapd"))
         if not self.sysdmanager.is_active("dnsmasq.service"):
             self.execute_command(self.hotspot_control("start", "dnsmasq"))
@@ -66,9 +67,19 @@ class HostAP(WiFi):
         self.execute_command(self.hotspot_control("stop", "hostapd"))
 
     def restart(self):
+        self.execute_command(f"ifconfig {self.interface} 192.168.100.1 netmask 255.255.255.0 broadcast 192.168.100.255")
         self.execute_command(self.hotspot_control("restart", "hostapd"))
         if not self.sysdmanager.is_active("dnsmasq.service"):
             self.execute_command(self.hotspot_control("start", "dnsmasq"))
+
+    def get_status(self):
+        network_params = None
+        if self.started():
+            network_params = dict()
+            network_params['ssid'] = self.get_hotspot_ssid()
+            network_params['ip'] = self.get_device_ip()
+            network_params['mac'] = self.get_device_mac()
+        return network_params
 
     def get_hotspot_ssid(self):
         return self.re_search("(?<=^ssid=).*", self.hostapd_path)

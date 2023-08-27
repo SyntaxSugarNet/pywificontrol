@@ -79,6 +79,7 @@ class WpaSupplicant(WiFi):
         return wpa_supplicant_started
 
     def start(self):
+        self.execute_command(f"ifconfig {self.interface} 0.0.0.0")
         self.execute_command(self.wpas_control("start"))
         self.wpa_supplicant_interface.initialize()
 
@@ -86,6 +87,7 @@ class WpaSupplicant(WiFi):
         self.execute_command(self.wpas_control("stop"))
 
     def restart(self):
+        self.execute_command(f"ifconfig {self.interface} 0.0.0.0")
         self.execute_command(self.wpas_control("restart"))
         self.wpa_supplicant_interface.initialize()
 
