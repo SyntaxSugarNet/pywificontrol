@@ -200,7 +200,10 @@ class WpaSupplicantInterface(WpaSupplicantDBus):
             raise PropertyError(error)
 
     def get_interface_path(self):
-        return self.get_interface(self.interface)
+        try:
+            return self.get_interface(self.interface)
+        except InterfaceError:
+            return self._DEFAULT_INTERFACE_PATH
 
     def scan(self):
         interface = self.__get_interface()

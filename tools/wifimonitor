@@ -58,6 +58,7 @@ def main():
             print('Changing to client mode...')
             wifi_control.start_client_mode()
 
+    wifi_monitor.register_callback(wifi_monitor.CLIENT_DISABLED, print_wifi_state)
     wifi_monitor.register_callback(wifi_monitor.CLIENT_INACTIVE, print_wifi_state)
     wifi_monitor.register_callback(wifi_monitor.CLIENT_SCANNING, print_wifi_state)
     wifi_monitor.register_callback(wifi_monitor.CLIENT_CONNECTING, print_wifi_state)

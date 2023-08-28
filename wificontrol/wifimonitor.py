@@ -58,6 +58,7 @@ class WiFiMonitorError(Exception):
 
 
 class WiFiMonitor(object):
+    CLIENT_DISABLED = 'CLIENT_DISABLED'
     CLIENT_INACTIVE = 'CLIENT_INACTIVE'
     CLIENT_SCANNING = 'CLIENT_SCANNING'
     CLIENT_CONNECTING = 'CLIENT_CONNECTING'
@@ -65,6 +66,7 @@ class WiFiMonitor(object):
     CLIENT_DISCONNECTED = 'CLIENT_DISCONNECTED'
 
     CLIENT_STATUS_EVENTS = {
+        'interface_disabled': CLIENT_DISABLED,
         'inactive': CLIENT_INACTIVE,
         'scanning': CLIENT_SCANNING,
         'associating': CLIENT_CONNECTING,
