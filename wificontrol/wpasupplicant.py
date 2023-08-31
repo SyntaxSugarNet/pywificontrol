@@ -123,21 +123,23 @@ class WpaSupplicant(WiFi):
 
     def add_network(self, network_parameters):
         network = convert_to_wpas_network(network_parameters)
-        if self.started():
-            self.wpa_supplicant_interface.add_network(network)
-            try:
-                self.config_updater.add_network(network)
-            except AttributeError:
-                pass
+        try:
+            self.config_updater.add_network(network)
+        except AttributeError:
+            pass
+        else:
+            if self.started():
+                self.wpa_supplicant_interface.add_network(network)
 
     def remove_network(self, network):
-        if self.started():
-            self.wpa_supplicant_interface.remove_network(
-                self.find_network_path(network))
-            try:
-                self.config_updater.remove_network(network)
-            except AttributeError:
-                pass
+        try:
+            self.config_updater.remove_network(network)
+        except AttributeError:
+            pass
+        else:
+            if self.started():
+                self.wpa_supplicant_interface.remove_network(
+                    self.find_network_path(network))
 
     def start_connecting(self, network, callback=None,
                          args=None, timeout=10):
