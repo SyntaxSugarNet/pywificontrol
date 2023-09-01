@@ -114,6 +114,9 @@ class WpaSupplicant(WiFi):
         else:
             return []
 
+    def get_added_network_count(self):
+        return len(self.config_updater.networks)
+
     def get_added_networks(self):
         current_network = None
         if self.started():

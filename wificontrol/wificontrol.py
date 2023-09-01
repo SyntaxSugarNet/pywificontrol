@@ -133,6 +133,9 @@ class WiFiControl(object):
     def get_added_networks(self):
         return self.wpa_supplicant.get_added_networks()
 
+    def get_added_network_count(self):
+        return self.wpa_supplicant.get_added_network_count()
+
     def get_ip(self):
         return self.wifi.get_device_ip()
 

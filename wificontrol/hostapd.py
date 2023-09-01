@@ -85,8 +85,7 @@ class HostAP(WiFi):
         return self.re_search("(?<=^ssid=).*", self.hostapd_path)
 
     def set_hotspot_ssid(self, name):
-        mac_addr = self.get_device_mac()[-6:]
-        self.replace("^ssid=.*", "ssid={}{}".format(name, mac_addr), self.hostapd_path)
+        self.replace("^ssid=.*", "ssid={}".format(name), self.hostapd_path)
 
     def set_hotspot_password(self, password):
         self.replace("^wpa_passphrase=.*",
