@@ -79,37 +79,31 @@ class WpasNetworkConverter(object):
         self.password = network_dict.get('password', '')
         self.identity = network_dict.get('identity', '')
         self.enabled = network_dict.get('enabled', True)
+        self.priority = network_dict.get('priority', 0)
 
     def __iter__(self):
-        if (self.security == 'open'):
-            yield "ssid", "{}".format(self.name)
+        yield "ssid", "{}".format(self.name)
+
+        if self.security == 'open':
             yield "key_mgmt", "NONE"
-            yield "disabled", int(not self.enabled)
-        elif (self.security == 'wep'):
-            yield "ssid", "{}".format(self.name)
+        elif self.security == 'wep':
             yield "key_mgmt", "NONE"
             yield "group", "WEP104 WEP40"
             yield "wep_key0", "{}".format(self.password)
-            yield "disabled", int(not self.enabled)
-        elif (self.security == 'wpapsk'):
-            yield "ssid", "{}".format(self.name)
+        elif self.security == 'wpapsk':
             yield "key_mgmt", "WPA-PSK"
             yield "pairwise", "CCMP TKIP"
             yield "group", "CCMP TKIP"
             yield "eap", "TTLS PEAP TLS"
             yield "psk", "{}".format(self.password)
-            yield "disabled", int(not self.enabled)
-        elif (self.security == 'wpa2psk'):
-            yield "ssid", "{}".format(self.name)
+        elif self.security == 'wpa2psk':
             yield "proto", "RSN"
             yield "key_mgmt", "WPA-PSK"
             yield "pairwise", "CCMP TKIP"
             yield "group", "CCMP TKIP"
             yield "eap", "TTLS PEAP TLS"
             yield "psk", "{}".format(self.password)
-            yield "disabled", int(not self.enabled)
-        elif (self.security == 'wpaeap'):
-            yield "ssid", "{}".format(self.name)
+        elif self.security == 'wpaeap':
             yield "key_mgmt", "WPA-EAP"
             yield "pairwise", "CCMP TKIP"
             yield "group", "CCMP TKIP"
@@ -117,11 +111,11 @@ class WpasNetworkConverter(object):
             yield "identity", "{}".format(self.identity)
             yield "password", "{}".format(self.password)
             yield "phase1", "peaplable=0"
-            yield "disabled", int(not self.enabled)
         else:
-            yield "ssid", "{}".format(self.name)
             yield "psk", "{}".format(self.password)
-            yield "disabled", int(not self.enabled)
+
+        yield "disabled", int(not self.enabled)
+        yield "priority", int(self.priority)
 
 
 class WifiControlNetworkConverter(object):
