@@ -33,16 +33,13 @@
 # EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
-from wificommon import WiFi
-from utils import CfgFileUpdater
-from utils import WpaSupplicantInterface, WpaSupplicantNetwork, WpaSupplicantBSS
-from utils import convert_to_wpas_network, convert_to_wificontrol_network, \
-    create_security
-from utils import FileError
-from utils import ServiceError, InterfaceError, PropertyError
+from wificontrol import WiFi
+from wificontrol.utils import CfgFileUpdater
+from wificontrol.utils import WpaSupplicantInterface, WpaSupplicantNetwork, WpaSupplicantBSS
+from wificontrol.utils import convert_to_wpas_network, convert_to_wificontrol_network, create_security
+
 from threading import Thread, Event, Timer
 import time
-import sys
 
 
 class WpaSupplicant(WiFi):
@@ -82,19 +79,27 @@ class WpaSupplicant(WiFi):
         return wpa_supplicant_started
 
     def start(self):
+        self.execute_command(f"ifconfig {self.interface} 0.0.0.0")
         self.execute_command(self.wpas_control("start"))
         self.wpa_supplicant_interface.initialize()
 
     def stop(self):
         self.execute_command(self.wpas_control("stop"))
 
+    def restart(self):
+        self.execute_command(f"ifconfig {self.interface} 0.0.0.0")
+        self.execute_command(self.wpas_control("restart"))
+        self.wpa_supplicant_interface.initialize()
+
     def get_status(self):
         network_params = None
         if self.started():
-            network_params = dict()
-            network_params['ssid'] = self.get_current_network_ssid()
-            network_params['mac address'] = self.get_device_mac()
-            network_params['IP address'] = self.get_device_ip()
+            current_ssid = self.get_current_network_ssid()
+            if current_ssid is not None:
+                network_params = dict()
+                network_params['ssid'] = current_ssid
+                network_params['ip'] = self.get_device_ip()
+                network_params['mac'] = self.get_device_mac()
         return network_params
 
     def scan(self):
@@ -108,6 +113,9 @@ class WpaSupplicant(WiFi):
                     self.wpa_supplicant_interface.get_BSSs()]
         else:
             return []
+
+    def get_added_network_count(self):
+        return len(self.config_updater.networks)
 
     def get_added_networks(self):
         current_network = None
@@ -170,7 +178,7 @@ class WpaSupplicant(WiFi):
     def get_bss_network_info(self, bss):
         return {
             "ssid": self.wpa_bss_manager.get_SSID(bss),
-            "mac address": self.wpa_bss_manager.get_BSSID(bss),
+            "mac": self.wpa_bss_manager.get_BSSID(bss),
             "security": self.get_security(bss)
         }
 
@@ -203,7 +211,7 @@ class WpaSupplicant(WiFi):
                 return False
         return True
 
-    # Names changung actions
+    # Names changing actions
     def set_p2p_name(self, name='reach'):
         self.replace("^p2p_ssid_postfix=.*", "p2p_ssid_postfix={}".format(name),
                      self.p2p_supplicant_path)
@@ -217,12 +225,15 @@ class WpaSupplicant(WiFi):
         for network in self.wpa_supplicant_interface.get_networks():
             if self.wpa_network_manager.get_network_SSID(network) == \
                     aim_network['ssid']:
-                return network
+                return str(network)
 
     def get_current_network_ssid(self):
         self.wpa_supplicant_interface.initialize()
-        network = self.wpa_supplicant_interface.get_current_network()
-        return self.wpa_network_manager.get_network_SSID(network)
+        current_network_path = self.wpa_supplicant_interface.get_current_network()
+        if current_network_path != "/":
+            return self.wpa_network_manager.get_network_SSID(current_network_path)
+        else:
+            return None
 
     # Connection actions
     def start_network_connection(self, network):
@@ -232,7 +243,7 @@ class WpaSupplicant(WiFi):
         else:
             self.wpa_supplicant_interface.reassociate()
 
-    def wait_untill_connection_complete(self):
+    def wait_until_connection_complete(self):
         while self.wpa_supplicant_interface.get_state() != "completed":
             if not self.connection_event.is_set():
                 raise RuntimeError("Can't connect to network")
@@ -246,7 +257,7 @@ class WpaSupplicant(WiFi):
     def connect_to_network(self, network):
         try:
             self.start_network_connection(network)
-            self.wait_untill_connection_complete()
+            self.wait_until_connection_complete()
             self.check_correct_connection(network)
         except RuntimeError:
             return False
@@ -263,7 +274,6 @@ class WpaSupplicant(WiFi):
         self.connection_thread = None
         self.stop_timer_thread()
         if self.break_event.is_set():
-            callback = None
             self.break_event.clear()
 
     def stop_timer_thread(self):

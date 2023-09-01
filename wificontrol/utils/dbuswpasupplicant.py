@@ -91,7 +91,10 @@ class WpaSupplicantDBus(object):
         try:
             return wpa_interface.GetInterface(interface)
         except dbus.exceptions.DBusException as error:
-            raise InterfaceError(error)
+            if "InterfaceUnknown" in error.get_dbus_name():
+                self.create_interface(interface)
+            else:
+                raise InterfaceError(error)
 
     def create_interface(self, interface, bridge_interface=None,
                          driver=None, config_file=None):
@@ -162,14 +165,16 @@ class WpaSupplicantDBus(object):
 
 class WpaSupplicantInterface(WpaSupplicantDBus):
     _INTERFACE_NAME = "fi.w1.wpa_supplicant1.Interface"
+    _DEFAULT_INTERFACE_PATH = "/fi/w1/wpa_supplicant1/Interfaces/0"
 
     def __init__(self, interface):
 
         super(WpaSupplicantInterface, self).__init__()
+        self._interface_path = self._DEFAULT_INTERFACE_PATH
         self.interface = interface
 
     def initialize(self):
-        self._interface_path = self.get_interface(self.interface)
+        self._interface_path = self.get_interface_path()
 
     def __get_interface(self):
         try:
@@ -193,6 +198,12 @@ class WpaSupplicantInterface(WpaSupplicantDBus):
             properties_interface.Set(self._INTERFACE_NAME, property_name, property_value)
         except dbus.exceptions.DBusException as error:
             raise PropertyError(error)
+
+    def get_interface_path(self):
+        try:
+            return self.get_interface(self.interface)
+        except InterfaceError:
+            return self._DEFAULT_INTERFACE_PATH
 
     def scan(self):
         interface = self.__get_interface()
@@ -248,7 +259,7 @@ class WpaSupplicantInterface(WpaSupplicantDBus):
         try:
             interface.Reassociate()
         except dbus.exceptions.DBusException as error:
-            if ("fi.w1.wpa_supplicant1.NotConnected" in str(error)):
+            if "NotConnected" in error.get_dbus_name():
                 pass
             else:
                 raise ServiceError(error)
@@ -380,11 +391,7 @@ class WpaSupplicantNetwork(WpaSupplicantDBus):
         return self.__get_properties(network_path)['Properties']
 
     def get_network_SSID(self, network_path):
-        ssid = self.network_properties(network_path)['ssid']
-        try:
-            return str(ssid.decode('hex')).strip("\"")
-        except TypeError:
-            return str(ssid).strip("\"")
+        return self.network_properties(network_path)['ssid'].strip("\"")
 
 
 if __name__ == '__main__':

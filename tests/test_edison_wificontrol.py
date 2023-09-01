@@ -87,7 +87,7 @@ class TestWiFiControl:
 
     def hostapd_callback(self, result):
         if not result:
-            self.manager.start_host_mode()
+            self.manager.start_hotspot_mode()
             self.connection_result = -1
         else:
             self.connection_result = 1
@@ -97,7 +97,7 @@ class TestWiFiControl:
     def assert_wpa_state(self, network):
         state, status = self.manager.get_status()
 
-        assert state == self.manager.WPA_STATE
+        assert state == self.manager.CLIENT_STATE
         assert status['ssid'] == network['ssid']
 
     def wait_for_callback(self, result):
@@ -105,12 +105,12 @@ class TestWiFiControl:
         assert self.connection_result == result
 
     def test_start_hotspot(self):
-        self.manager.start_host_mode()
-        assert self.manager.get_state() == self.manager.HOST_STATE
+        self.manager.start_hotspot_mode()
+        assert self.manager.get_state() == self.manager.HOTSPOT_STATE
 
     def test_start_client(self):
         self.manager.start_client_mode()
-        assert self.manager.get_state() == self.manager.WPA_STATE
+        assert self.manager.get_state() == self.manager.CLIENT_STATE
 
     def test_wifi_turn_off(self):
         self.manager.turn_off_wifi()
@@ -125,7 +125,7 @@ class TestWiFiControl:
 
     def test_network_add(self, valid_network):
         self.manager.add_network(valid_network)
-        self.manager.start_host_mode()
+        self.manager.start_hotspot_mode()
 
         added_networks = self.manager.get_added_networks()
 
@@ -155,7 +155,7 @@ class TestWiFiControl:
         self.manager.remove_network(invalid_network)
 
     def test_connect_to_reachable_network_from_hostap(self, valid_network):
-        self.manager.start_host_mode()
+        self.manager.start_hotspot_mode()
 
         self.manager.add_network(valid_network)
         self.manager.start_connecting(valid_network, callback=self.hostapd_callback)
@@ -171,11 +171,11 @@ class TestWiFiControl:
 
         self.manager.set_device_names(new_name)
         assert self.manager.get_device_name() == new_name
-        assert self.manager.get_hostap_name() == new_name + mac_end
+        assert self.manager.get_hotspot_name() == new_name + mac_end
 
         self.manager.set_device_names(old_name)
         assert self.manager.get_device_name() == old_name
-        assert self.manager.get_hostap_name() == old_name + mac_end
+        assert self.manager.get_hotspot_name() == old_name + mac_end
 
     def test_connect_to_any_network(self):
         self.manager.start_client_mode()
@@ -185,7 +185,7 @@ class TestWiFiControl:
 
         state, status = self.manager.get_status()
 
-        assert state == self.manager.WPA_STATE
+        assert state == self.manager.CLIENT_STATE
         assert status['ssid']
 
     def test_scan_function(self):
@@ -200,7 +200,7 @@ class TestWiFiControl:
 
         state, status = self.manager.get_status()
 
-        assert state == self.manager.WPA_STATE
+        assert state == self.manager.CLIENT_STATE
         assert status is None
 
     def test_reconnection(self, valid_network, invalid_network):

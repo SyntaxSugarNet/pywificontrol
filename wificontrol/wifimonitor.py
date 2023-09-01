@@ -31,30 +31,26 @@
 # STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
 # EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
+import functools
 
 import dbus
 import dbus.service
 import dbus.mainloop.glib
 import logging
-from . import WiFiControl
+from wificontrol import WiFiControl
 
-try:
-    from gi.repository import GObject
-except ImportError:
-    import gobject as GObject
+from gi.repository import GLib
 
 logger = logging.getLogger(__name__)
 
 DBUS_PROPERTIES_IFACE = 'org.freedesktop.DBus.Properties'
-
-WPAS_INTERFACE_DBUS_OPATH = "/fi/w1/wpa_supplicant1/Interfaces/1"
 WPAS_INTERFACE_DBUS_IFACE = "fi.w1.wpa_supplicant1.Interface"
-
 SYSTEMD_DBUS_SERVICE = 'org.freedesktop.systemd1'
 SYSTEMD_DBUS_OPATH = '/org/freedesktop/systemd1'
 SYSTEMD_MANAGER_DBUS_IFACE = 'org.freedesktop.systemd1.Manager'
 HOSTAPD_DBUS_UNIT_OPATH = '/org/freedesktop/systemd1/unit/hostapd_2eservice'
+DNSMASQ_DBUS_SERVICE = 'uk.org.thekelleys.dnsmasq'
+DNSMASQ_DBUS_OPATH = '/uk/org/thekelleys/dnsmasq'
 
 
 class WiFiMonitorError(Exception):
@@ -62,120 +58,123 @@ class WiFiMonitorError(Exception):
 
 
 class WiFiMonitor(object):
-    CLIENT_STATE = 'CLIENT'
-    HOST_STATE = 'HOST'
-    SCAN_STATE = 'SCAN'
-    OFF_STATE = 'OFF'
+    CLIENT_DISABLED = 'CLIENT_DISABLED'
+    CLIENT_INACTIVE = 'CLIENT_INACTIVE'
+    CLIENT_SCANNING = 'CLIENT_SCANNING'
+    CLIENT_CONNECTING = 'CLIENT_CONNECTING'
+    CLIENT_CONNECTED = 'CLIENT_CONNECTED'
+    CLIENT_DISCONNECTED = 'CLIENT_DISCONNECTED'
 
-    SUCCESS_EVENT = 'SUCCESS'
-    REVERT_EVENT = 'REVERT'
+    CLIENT_STATUS_EVENTS = {
+        'interface_disabled': CLIENT_DISABLED,
+        'inactive': CLIENT_INACTIVE,
+        'scanning': CLIENT_SCANNING,
+        'associating': CLIENT_CONNECTING,
+        'completed': CLIENT_CONNECTED,
+        'disconnected': CLIENT_DISCONNECTED
+    }
 
-    STATES = {
-        'completed': CLIENT_STATE,
-        'scanning': SCAN_STATE,
-        'disconnected': OFF_STATE,
+    HOTSPOT_STARTING = 'HOTSPOT_STARTING'
+    HOTSPOT_STARTED = 'HOTSPOT_STARTED'
+    HOTSPOT_STOPPING = 'HOTSPOT_STOPPING'
+    HOTSPOT_STOPPED = 'HOTSPOT_STOPPED'
+    HOTSPOT_FAILED = 'HOTSPOT_FAILED'
 
-        WiFiControl.HOST_STATE: HOST_STATE,
-        WiFiControl.WPA_STATE: CLIENT_STATE,
-        WiFiControl.OFF_STATE: OFF_STATE,
+    HOTSPOT_STATUS_EVENTS = {
+        'activating': HOTSPOT_STARTING,
+        'active': HOTSPOT_STARTED,
+        'deactivating': HOTSPOT_STOPPING,
+        'inactive': HOTSPOT_STOPPED,
+        'failed': HOTSPOT_FAILED
+    }
 
-        ('active', 'running'): HOST_STATE,
-        ('deactivating', 'stop-post'): OFF_STATE,
-        ('failed', 'failed'): OFF_STATE,
+    PEER_CONNECTED = "PEER_CONNECTED"
+    PEER_RECONNECTED = "PEER_RECONNECTED"
+    PEER_DISCONNECTED = "PEER_DISCONNECTED"
+
+    HOTSPOT_PEER_EVENTS = {
+        'DhcpLeaseAdded': PEER_CONNECTED,
+        'DhcpLeaseUpdated': PEER_RECONNECTED,
+        'DhcpLeaseDeleted': PEER_DISCONNECTED
     }
 
     def __init__(self):
         dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
         self.bus = dbus.SystemBus()
-        self._mainloop = GObject.MainLoop()
+        self._mainloop = GLib.MainLoop()
 
-        self.wifi_manager = WiFiControl()
+        self.wifi_control = None
 
         self.callbacks = {}
 
-        self.current_state = self.OFF_STATE
-        self.current_ssid = None
+        self.last_client_data = None
+        self.last_hotspot_event = None
 
     def _initialize(self):
         systemd_obj = self.bus.get_object(SYSTEMD_DBUS_SERVICE,
                                           SYSTEMD_DBUS_OPATH)
-        self.sysd_manager = dbus.Interface(systemd_obj,
-                                           dbus_interface=SYSTEMD_MANAGER_DBUS_IFACE)
+        self.sysd_manager = dbus.Interface(systemd_obj, dbus_interface=SYSTEMD_MANAGER_DBUS_IFACE)
         self.sysd_manager.Subscribe()
 
-        self.bus.add_signal_receiver(self._wpa_props_changed,
+        self.last_client_data = self.wifi_control.wpa_supplicant.get_status()
+
+        wpa_interface = self.wifi_control.wpa_supplicant.wpa_supplicant_interface.get_interface_path()
+
+        self.bus.add_signal_receiver(self._wpa_properties_changed,
                                      dbus_interface=WPAS_INTERFACE_DBUS_IFACE,
                                      signal_name="PropertiesChanged",
-                                     path=WPAS_INTERFACE_DBUS_OPATH)
+                                     path=wpa_interface)
 
-        self.bus.add_signal_receiver(self._host_props_changed,
+        self.bus.add_signal_receiver(self._hostapd_properties_changed,
                                      dbus_interface=DBUS_PROPERTIES_IFACE,
                                      signal_name="PropertiesChanged",
                                      path=HOSTAPD_DBUS_UNIT_OPATH)
 
-        self._register_local_callbacks()
-        self._set_initial_state()
+        dnsmasq = self.bus.get_object(DNSMASQ_DBUS_SERVICE, DNSMASQ_DBUS_OPATH)
 
-    def _register_local_callbacks(self):
-        self.register_callback(self.CLIENT_STATE, self._check_current_ssid)
-        self.register_callback(self.HOST_STATE, self._clear_ssid)
+        for signal in self.HOTSPOT_PEER_EVENTS.keys():
+            dnsmasq.connect_to_signal(signal, functools.partial(self._dhcp_lease_changed, signal))
 
-    def _set_initial_state(self):
-        state = self.wifi_manager.get_state()
-        logger.debug('Initiate WiFiMonitor with "{}" state'.format(state))
-        self._process_new_state(state)
+    def _wpa_properties_changed(self, props):
+        wpa_state = props.get('State')
+        if wpa_state:
+            event = self.CLIENT_STATUS_EVENTS.get(wpa_state)
+            if event:
+                self._execute_callbacks(event, self.last_client_data)
+                self.last_client_data = self.wifi_control.wpa_supplicant.get_status()
+            else:
+                logger.error("Unmapped WPA state: %s", wpa_state)
 
-    def _host_props_changed(self, *args):
+    def _hostapd_properties_changed(self, *args):
         _, props, _ = args
-        active_state = props.get('ActiveState')
-        sub_state = props.get('SubState')
-
-        if active_state and sub_state:
-            self._process_new_state((active_state, sub_state))
-
-    def _wpa_props_changed(self, props):
-        state = props.get('State')
-        disconnect = props.get('DisconnectReason', None)
-
-        if disconnect is not None:
-            state = 'disconnected'
+        state = props.get('ActiveState')
 
         if state:
-            self._process_new_state(state)
+            event = self.HOTSPOT_STATUS_EVENTS.get(state)
+            if event:
+                if event != self.last_hotspot_event:
+                    self.last_hotspot_event = event
+                    data = self.wifi_control.hotspot.get_status()
+                    self._execute_callbacks(event, data)
+            else:
+                logger.error("Unmapped HOSTAPD state: %s", state)
 
-    def _process_new_state(self, state):
-        state = self.STATES.get(state)
-        if state and self.current_state != state:
-            logger.debug('Switching to {} state'.format(state))
-            self.current_state = state
-            self._execute_callbacks(state)
+    def _dhcp_lease_changed(self, *args, **kwargs):
+        if self.wifi_control.get_state() != self.wifi_control.HOTSPOT_STATE:
+            return
 
-    def _check_current_ssid(self):
-        event = self.REVERT_EVENT
+        signal = args[0]
+        event = self.HOTSPOT_PEER_EVENTS.get(signal)
 
-        if self._ssid_updated:
-            event = self.SUCCESS_EVENT
-
-        self._execute_callbacks(event)
-
-    @property
-    def _ssid_updated(self):
-        _, status = self.wifi_manager.get_status()
-
-        try:
-            ssid = status['ssid']
-        except (KeyError, TypeError) as error:
-            logger.debug('Got empty network status')
-            raise WiFiMonitorError(error)
-
-        if self.current_ssid != ssid:
-            self.current_ssid = ssid
-            return True
-
-        return False
-
-    def _clear_ssid(self):
-        self.current_ssid = None
+        if event:
+            data = dict()
+            if len(args) == 4:
+                data['name'] = str(args[3])
+                data['ip'] = str(args[1])
+                data['mac'] = str(args[2])
+            self._execute_callbacks(event, data)
+        else:
+            logger.error("Unmapped DNSMASQ signal: %s", signal)
 
     def register_callback(self, msg, callback, args=()):
         if msg not in self.callbacks:
@@ -183,18 +182,19 @@ class WiFiMonitor(object):
 
         self.callbacks[msg].append((callback, args))
 
-    def _execute_callbacks(self, msg):
-        callbacks = self.callbacks.get(msg)
+    def _execute_callbacks(self, event, data):
+        callbacks = self.callbacks.get(event)
         if callbacks:
             for callback in callbacks:
                 callback, args = callback
                 try:
-                    callback(*args)
+                    callback(event, data)
                 except Exception as error:
                     logger.error('Callback {} execution error. {}'.format(callback.__name__, error))
 
-    def run(self):
+    def run(self, wifi_control: WiFiControl):
         try:
+            self.wifi_control = wifi_control
             self._initialize()
         except dbus.exceptions.DBusException as error:
             logger.error(error)

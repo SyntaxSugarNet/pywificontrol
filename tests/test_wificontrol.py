@@ -61,7 +61,7 @@ class TestWiFiControl:
     def test_host_mode(self):
         self.manager.hotspot.started = mock.Mock(return_value=False)
 
-        self.manager.start_host_mode()
+        self.manager.start_hotspot_mode()
 
         assert self.manager.wpasupplicant.stop.call_count == 1
         assert self.manager.hotspot.started.call_count == 1
@@ -128,7 +128,7 @@ class TestWiFiControl:
 
         state, status = self.manager.get_status()
 
-        assert state == self.manager.HOST_STATE
+        assert state == self.manager.HOTSPOT_STATE
         assert status is None
 
         self.manager.wpasupplicant.started.return_value = True
@@ -138,7 +138,7 @@ class TestWiFiControl:
 
         state, status = self.manager.get_status()
 
-        assert state == self.manager.WPA_STATE
+        assert state == self.manager.CLIENT_STATE
         assert status == ssid
 
     def test_start_connection(self, ssid):
@@ -205,24 +205,24 @@ class TestWiFiControl:
         self.manager.get_device_name()
         assert self.manager.hotspot.get_host_name.call_count == 1
 
-        self.manager.get_hostap_name()
-        assert self.manager.hotspot.get_hostap_name.call_count == 1
+        self.manager.get_hotspot_name()
+        assert self.manager.hotspot.get_hotspot_ssid.call_count == 1
 
         name = 'test'
         self.manager.set_device_names(name)
         assert self.manager.wpasupplicant.set_p2p_name.call_count == 1
         assert self.manager.wpasupplicant.set_p2p_name.is_called_once_with(name)
 
-        assert self.manager.hotspot.set_hostap_name.call_count == 1
-        assert self.manager.hotspot.set_hostap_name.is_called_once_with(name)
+        assert self.manager.hotspot.set_hotspot_ssid.call_count == 1
+        assert self.manager.hotspot.set_hotspot_ssid.is_called_once_with(name)
 
         assert self.manager.hotspot.set_host_name.call_count == 1
         assert self.manager.hotspot.set_host_name.is_called_once_with(name)
 
         assert self.manager.wifi.restart_dns.call_count == 1
 
-        self.manager.set_hostap_password(name)
-        assert self.manager.hotspot.set_hostap_password.is_called_once_with(name)
+        self.manager.set_hotspot_password(name)
+        assert self.manager.hotspot.set_hotspot_password.is_called_once_with(name)
 
     def test_verify_names(self):
         name = 'test'
@@ -230,10 +230,10 @@ class TestWiFiControl:
 
         self.manager.hotspot.get_host_name.return_value = name
         self.manager.wpasupplicant.get_p2p_name.return_value = name
-        self.manager.hotspot.get_hostap_name.return_value = "{}{}".format(name, mac_addr[-6:])
+        self.manager.hotspot.get_hotspot_ssid.return_value = "{}{}".format(name, mac_addr[-6:])
         self.manager.hotspot.get_device_mac.return_value = mac_addr[-6:]
 
-        assert self.manager.verify_hostap_name(name)
+        assert self.manager.verify_hotspot_name(name)
         assert self.manager.verify_device_names(name)
         assert self.manager.hotspot.get_host_name.call_count == 1
         assert self.manager.wpasupplicant.get_p2p_name.call_count == 1

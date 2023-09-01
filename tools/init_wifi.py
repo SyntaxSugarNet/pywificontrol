@@ -44,7 +44,7 @@ def _show_result(result, wifi_controller):
     if result:
         sys.stdout.write("Network mode: client")
     else:
-        if wifi_controller.start_host_mode():
+        if wifi_controller.start_hotspot_mode():
             sys.stdout.write("Network mode: master")
         else:
             sys.stdout.write("Network mode: unknown")
@@ -63,7 +63,7 @@ def initialize():
                 None, callback=_show_result,
                 args=(wifi_controller,))
         else:
-            if wifi_controller.start_host_mode():
+            if wifi_controller.start_hotspot_mode():
                 sys.stdout.write("Network mode: master")
             else:
                 sys.stdout.write("Network mode: unknown")
